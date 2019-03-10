@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:metadata="http://www.mulesoft.org/schema/mule/metadata" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration" host="0.0.0.0" port="8080" doc:name="HTTP Listener Configuration"/>
+    <http:request-config name="HTTP_Request_Configuration" protocol="HTTPS" host="api.openweathermap.org" port="443" doc:name="HTTP Request Configuration"/>
+    <flow name="mlctechexFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/launchWindows" allowedMethods="GET" doc:name="HTTP"/>
+        <set-variable variableName="locationId" value="#[message.inboundProperties.'http.query.params'.id]" doc:name="Set Query Parameter"/>
+        <http:request config-ref="HTTP_Request_Configuration" path="/data/2.5/forecast" method="GET" doc:name="GetWeatherForecast">
+            <http:request-builder>
+                <http:query-param paramName="id" value="#[flowVars.locationId]"/>
+                <http:query-param paramName="appid" value="17edea42244a8db825a8d8b3451abbe3"/>
+            </http:request-builder>
+        </http:request>
+        <dw:transform-message doc:name="Generate Launch Windows" metadata:id="ec17063d-9456-47d5-b419-6baea9605017">
+            <dw:input-payload doc:sample="C:\Users\Siddharth\Desktop\response.json" mimeType="application/json"/>
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json skipNullOn="everywhere"
+%var locationId= payload.city.id
+%var cloudiness = 50 when locationId == 7839805 otherwise ( 40 when locationId == 2073124 otherwise ( 60 when locationId == 2163355 otherwise 30))
+%var windSpeed = 20 when locationId == 7839805 otherwise ( 15 when locationId == 2073124 otherwise ( 10 when locationId == 2163355 otherwise 5))
+%var input=payload.list map {
+	(datetime:$.dt_txt) when (($.clouds.all <=cloudiness and $.wind.speed <=windSpeed)),
+	(score: abs (20-($.main.temp)) + $.wind.speed + (abs (220-($.wind.deg))*0.1)) when (($.clouds.all <=cloudiness and $.wind.speed <=windSpeed))
+} filter $ != {} orderBy $.score
+---
+launchWindows: [{
+	location: "Melbourne" when locationId == 7839805 otherwise ("Darwin" when locationId == 2073124 otherwise ("Hobart" when locationId ==  2163355 otherwise "Perth")),
+	datetime: input[0].datetime,
+	score: input[0].score
+},
+
+{location: "Melbourne" when locationId == 7839805 otherwise ("Darwin" when locationId == 2073124 otherwise ("Hobart" when locationId ==  2163355 otherwise "Perth")),
+	datetime: input[1].datetime,
+	score: input[1].score},
+	
+	{location: "Melbourne" when locationId == 7839805 otherwise ("Darwin" when locationId == 2073124 otherwise ("Hobart" when locationId ==  2163355 otherwise "Perth")),
+	datetime: input[2].datetime,
+	score: input[2].score},
+	
+	{location: "Melbourne" when locationId == 7839805 otherwise ("Darwin" when locationId == 2073124 otherwise ("Hobart" when locationId ==  2163355 otherwise "Perth")),
+	datetime: input[3].datetime,
+	score: input[3].score},
+	
+	{location: "Melbourne" when locationId == 7839805 otherwise ("Darwin" when locationId == 2073124 otherwise ("Hobart" when locationId ==  2163355 otherwise "Perth")),
+	datetime: input[4].datetime,
+	score: input[4].score}
+]]]></dw:set-payload>
+        </dw:transform-message>
+        <logger message="#[payload]" level="INFO" category="*****Temp" doc:name="Logger"/>
+    </flow>
+</mule>
